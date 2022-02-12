@@ -1,5 +1,3 @@
-// Postgres docker image: https://hub.docker.com/_/postgres
-
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.8"
