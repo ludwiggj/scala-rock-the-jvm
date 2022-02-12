@@ -1,14 +1,14 @@
 package tagless
 
 import cats.effect.{MonadCancelThrow, Resource}
-import domain.Director
+import domain.DirectorName
 import doobie.implicits.toSqlInterpolator
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 
 trait Directors[F[_]] {
-  def findById(id: Int): F[Option[Director]]
-  def findAll: F[List[Director]]
+  def findById(id: Int): F[Option[DirectorName]]
+  def findAll: F[List[DirectorName]]
   def create(name: String, lastName: String): F[Int]
 }
 
@@ -17,14 +17,14 @@ object Directors {
     new Directors[F] {
       //import DirectorSQL._
 
-      def findById(id: Int): F[Option[Director]] =
+      def findById(id: Int): F[Option[DirectorName]] =
         postgres.use { xa =>
-          sql"SELECT name, last_name FROM directors WHERE id = $id".query[Director].option.transact(xa)
+          sql"SELECT name, last_name FROM directors WHERE id = $id".query[DirectorName].option.transact(xa)
         }
 
-      def findAll: F[List[Director]] =
+      def findAll: F[List[DirectorName]] =
         postgres.use { xa =>
-          sql"SELECT name, last_name FROM directors".query[Director].to[List].transact(xa)
+          sql"SELECT name, last_name FROM directors".query[DirectorName].to[List].transact(xa)
         }
 
       def create(name: String, lastName: String): F[Int] =

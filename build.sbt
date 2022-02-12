@@ -1,5 +1,7 @@
 // Postgres docker image: https://hub.docker.com/_/postgres
 
+// docker-compose -f stack.yml up
+
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.8"
@@ -12,7 +14,8 @@ lazy val commonSettings = Seq(
   "org.tpolecat" %% "doobie-core"     % DoobieVersion,
   "org.tpolecat" %% "doobie-postgres" % DoobieVersion,
   "org.tpolecat" %% "doobie-hikari"   % DoobieVersion,
-  "io.estatico"  %% "newtype"         % NewTypeVersion
+  "io.estatico"  %% "newtype"         % NewTypeVersion,
+  "newtypeopoia" % "newtypeopoia_2.13" % "0.1.0-SNAPSHOT"
 ))
 
 lazy val root = (project in file("."))
