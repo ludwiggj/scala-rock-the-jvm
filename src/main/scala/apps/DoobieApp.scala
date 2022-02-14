@@ -199,6 +199,50 @@ object DoobieApp extends IOApp {
     query.transact(xa)
   }
 
+  // findAllMoviesUngrouped()
+//    val query = sql"""
+//                     |SELECT m.id,
+//                     |       m.title,
+//                     |       m.year_of_production,
+//                     |       a.name as actors,
+//                     |       d.name || ' ' || d.last_name
+//                     |FROM movies m
+//                     |JOIN movies_actors ma ON m.id = ma.movie_id
+//                     |JOIN actors a ON ma.actor_id = a.id
+//                     |JOIN directors d ON m.director_id = d.id
+//                     |GROUP BY (m.id,
+//                     |          m.title,
+//                     |          m.year_of_production,
+//                     |          a.name,
+//                     |          d.name,
+//                     |          d.last_name)
+//                     |""".stripMargin
+
+  // https://www.postgresqltutorial.com/postgresql-aggregate-functions/postgresql-array_agg-function/
+  def findAllMovies(): IO[List[Movie]] = {
+    val query = sql"""
+                     |SELECT m.id,
+                     |       m.title,
+                     |       m.year_of_production,
+                     |       array_agg(a.name) as actors,
+                     |       d.name || ' ' || d.last_name
+                     |FROM movies m
+                     |JOIN movies_actors ma ON m.id = ma.movie_id
+                     |JOIN actors a ON ma.actor_id = a.id
+                     |JOIN directors d ON m.director_id = d.id
+                     |GROUP BY (m.id,
+                     |          m.title,
+                     |          m.year_of_production,
+                     |          d.name,
+                     |          d.last_name)
+                     |""".stripMargin
+      .query[Movie]
+
+    query.stream.compile.toList.transact(xa)
+  }
+
+
+
   override def run(args: List[String]): IO[ExitCode] = {
     //    saveActorProgram("Brian Blessed")
     //      .map(println) >>
@@ -208,6 +252,7 @@ object DoobieApp extends IOApp {
     //      .map(println) >>
     //    saveActorsProgram(NonEmptyList("Zippy", List("George", "Bungle")))
     //      .map(println) >>
+
     saveActorsAndReturnThemProgram(NonEmptyList("Jennifer Lopez", List("Dolly Parton")))
       .map(println) >>
       findAllActorsNamesProgram
@@ -239,6 +284,8 @@ object DoobieApp extends IOApp {
       findMovieByNameProgram("Zack Snyder's Justice League")
         .map(println) >>
       findMovieByNameWithoutSqlJoinProgram("Zack Snyder's Justice League")
+        .map(println) >>
+      findAllMovies()
         .map(println)
         .as(ExitCode.Success)
   }
