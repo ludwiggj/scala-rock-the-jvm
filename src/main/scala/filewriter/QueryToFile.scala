@@ -21,7 +21,7 @@ object QueryToFile {
     val actorsNamesStream: fs2.Stream[doobie.ConnectionIO, String] =
       sql"select name from actors".query[String].stream
 
-    val filePathIO: IO[Path] = IO(FileSystems.getDefault().getPath(".", "actors.txt"))
+    val filePathIO: IO[Path] = IO(FileSystems.getDefault.getPath(".", "actors.txt"))
 
     // Query taken from https://stackoverflow.com/questions/60569610/save-doobie-stream-from-database-to-file
     val program = for {

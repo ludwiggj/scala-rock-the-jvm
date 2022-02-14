@@ -15,7 +15,6 @@ trait Directors[F[_]] {
 object Directors {
   def make[F[_]: MonadCancelThrow](postgres: Resource[F, Transactor[F]]): Directors[F] = {
     new Directors[F] {
-      //import DirectorSQL._
 
       def findById(id: Int): F[Option[Director]] =
         postgres.use { xa =>

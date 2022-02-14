@@ -1,6 +1,5 @@
 package filewriter
 
-import apps.DoobieApp.xa
 import cats.effect._
 import cats.effect.unsafe.implicits.global
 import domain.Movie
@@ -8,8 +7,11 @@ import doobie._
 import doobie.implicits._
 import fs2.io.file.Files
 import fs2.text
-
 import java.nio.file.{FileSystems, Path}
+
+// Very important to deal with arrays
+import doobie.postgres._
+import doobie.postgres.implicits._
 
 object AnotherQueryToFile {
   def main(args: Array[String]): Unit = {
@@ -40,15 +42,18 @@ object AnotherQueryToFile {
         .query[Movie].stream
     }
 
-    val filePathIO: IO[Path] = IO(FileSystems.getDefault().getPath(".", "actors2.txt"))
+    val filePathIO: IO[Path] = IO(FileSystems.getDefault.getPath(".", "actors2.txt"))
 
     val program = for {
       filePath <- filePathIO
       _        <- IO.println(s"Existing file deleted? ${filePath.toFile.delete()}")
       _        <- findAllMovies
         .transact(xa)
-        .map(_.toString)
-//        .intersperse("\n")
+        // Explode list of actors
+        .map(m => m.actors.map(a => s"Actor: $a, Film: ${m.title} (${m.year}), Director: ${m.director}"))
+        // Flatten into a single stream
+        .flatMap(seq => fs2.Stream.emits(seq))
+        .intersperse("\n")
         .through(text.utf8Encode[IO])
         .through(Files[IO].writeAll(filePath))
         .compile
