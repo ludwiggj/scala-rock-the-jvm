@@ -17,6 +17,6 @@ lazy val commonSettings = Seq(
 
 lazy val root = (project in file("."))
   .settings(
-    name := "doobie-rockthejvm",
+    name := "scala-rock-the-jvm",
     commonSettings
   )
