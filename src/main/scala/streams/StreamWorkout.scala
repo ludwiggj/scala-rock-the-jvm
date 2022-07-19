@@ -14,6 +14,24 @@ import scala.util.{Failure, Random, Try}
 
 // This is based on https://blog.rockthejvm.com/fs2/
 
+// TODO: Look at following (from https://github.com/ITV/fast-ingest/commit/bc8673f6b03e529bd628056a8f10540e6f396c23)
+// // TODO: Delete as these statements are not being logged
+//       def info1(msg: String): Stream[F, Unit] = emit(logger.info(msg))
+//
+//       // TODO: Delete as these statements are logged, but calls to Amagi in getScheduleForPipe are not made
+//       def info2(msg: String): Stream[F, Unit] =
+//         emit[F, String](msg)
+//           .evalTap(logger.info(_))
+//           .flatMap(_ => empty)
+//
+//       // TODO: Keep this version, as it works
+//       def info(msg: String): Stream[F, String] =
+//         emit[F, String](msg)
+//           .evalTap(logger.info(_))
+//
+//  Actual solution:
+//    def info(msg: String): Stream[F, Unit] = eval(logger.info(msg))
+
 // Running this evaluates the IO[ExitCode]
 object StreamWorkout extends IOApp {
   object db {
