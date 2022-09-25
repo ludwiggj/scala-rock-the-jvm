@@ -1,3 +1,5 @@
 package domain
 
-case class Director(name: String, lastName: String)
+case class Director(firstName: String, lastName: String) {
+  override def toString: String = s"$firstName $lastName"
+}
