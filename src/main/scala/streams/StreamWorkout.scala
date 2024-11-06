@@ -38,163 +38,34 @@ object StreamWorkout extends IOApp {
     case class DatabaseConnection(connection: String) extends AnyVal
   }
 
+  // Pure streams evaluate no effects, they cannot fail
+  val justiceLeagueActors: Stream[Pure, Actor] = Stream(
+    henryCavil,
+    galGodot,
+    ezraMiller,
+    benFisher,
+    rayHardy,
+    jasonMomoa
+  )
+
+  val spiderMenActors: Stream[Pure, Actor] = Stream.emits(List(
+    tomHolland,
+    tobeyMaguire,
+    andrewGarfield
+  ))
+
+  val avengerActors: Stream[Pure, Actor] = Stream(
+    scarlettJohansson,
+    robertDowneyJr,
+    chrisEvans,
+    markRuffalo,
+    chrisHemsworth,
+    jeremyRenner,
+    tomHolland
+  )
+
   // (2) Building a stream
   def buildingStreams: (Stream[Pure, Actor], Stream[Pure, Actor], Stream[Pure, Actor]) = {
-    println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    println("> BUILDING STREAMS                   <")
-    println("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-
-    // Pure streams evaluate no effects, they cannot fail
-    val justiceLeagueActors: Stream[Pure, Actor] = Stream(
-      henryCavil,
-      galGodot,
-      ezraMiller,
-      benFisher,
-      rayHardy,
-      jasonMomoa
-    )
-
-    // Can use emit and emits to create pure streams
-    println("\nUsing Stream.emit and Stream.emits to create pure streams")
-    println("=========================================================\n")
-
-    val tomHollandStream: Stream[Pure, Actor] = Stream.emit(tomHolland)
-    println(s"Tom!\n\n${tomHollandStream.compile.toList.head}\n")
-
-    val spiderMenActors: Stream[Pure, Actor] = Stream.emits(List(
-      tomHolland,
-      tobeyMaguire,
-      andrewGarfield
-    ))
-
-    println(s"Spidymen!\n\n${spiderMenActors.compile.toList.mkString("\n")}")
-
-    // Convert pure streams to other structures
-    println("\nPure streams as finite structures")
-    println("=================================\n")
-
-    val justiceLeagueActorList: List[Actor] = justiceLeagueActors.toList
-    val justiceLeagueActorVector: Vector[Actor] = justiceLeagueActors.toVector
-
-    println(s"A list:\n$justiceLeagueActorList")
-    println(s"A vector:\n$justiceLeagueActorVector")
-
-    // Infinite streams
-    val infiniteJusticeLeagueActors: Stream[Pure, Actor] = justiceLeagueActors.repeat
-
-    println("\nTaking items from a repeating (infinite) stream")
-    println("===============================================\n")
-    println(s"Actors twice:\n\n${infiniteJusticeLeagueActors.take(12).toList.mkString("\n")}")
-
-    // Lift stream into an IO
-    // The Pure effect is not sufficient to pull new elements from a stream most of the time.
-    // Typically the stream must interact with some external resource or with some code performing side effects.
-    // This means the operation can fail. In this case, we need to use some effect library, such as Cats-effect,
-    // and its effect type, called IO[A]
-
-    // IO represents the “functional” and “effectful” parts. All the streams’ definitions are referentially
-    // transparent and remain pure since no side effects are performed.
-
-    println("\nLifting streams into an effect type")
-    println("===================================\n")
-
-    // Starting from the stream we already defined, we can create a new effectful stream mapping the Pure effect
-    // in an IO effect using the covary[F] method:
-    val liftedJusticeLeagueActors: Stream[IO, Actor] = justiceLeagueActors.covary[IO]
-
-    println(s"Justice League actors (lifted into IO)               : ${liftedJusticeLeagueActors.compile.toList.unsafeRunSync}")
-
-    // Pure can be lifted to IO automatically if target type is specified
-    val liftedJusticeLeagueActors2: Stream[IO, Actor] = justiceLeagueActors
-
-    println(s"Justice League actors2 (lifted into IO)              : ${liftedJusticeLeagueActors2.compile.toList.unsafeRunSync}")
-
-    // The method is called covary because of the covariance of the Stream type in the F type parameter:
-    //
-    // fs2 library code
-    // final class Stream[+F[_], +O]
-    //
-    // Since the Pure effect is defined as an alias of the Scala bottom type Nothing, the covary method takes
-    // advantage of this fact and changes the effect type to IO:
-    //
-    // Covariance in F means that
-    // Pure <: IO => Stream[Pure, O] <: Stream[IO, O]
-
-    // lifting into a different effect type
-
-    // It’s not mandatory to use the IO effect. We can use any other effect library that supports type classes
-    // defined in the cats-effect library. As an example, let’s use the covary method using a generic effect type.
-
-    // In this case, we chose to use the MonadThrow type class from the cats-effect library, which allows us to
-    // concatenate effects using the flatMap method and handle exceptions natively.
-    def justiceLeagueActorStream[F[_] : MonadThrow]: Stream[F, Actor] = justiceLeagueActors.covary[F]
-
-    println(s"Justice League actors (lifted into IO via MonadThrow): ${justiceLeagueActorStream[IO].compile.toList.unsafeRunSync}")
-
-    // In most cases, we want to create a stream directly evaluating some statements that may produce side effects.
-    // So, for example, let’s try to persist an actor through a stream:
-
-    // eval creates a single element stream that gets its value by evaluating
-    // the supplied effect. If the effect fails, the returned stream fails.
-
-    println("\nStream.eval creates single element stream in an effect type")
-    println("===========================================================\n")
-
-    // The stream will evaluate the IO effect when pulled.
-    val savingTomHolland: Stream[IO, Unit] = Stream.eval {
-      IO {
-        println(s"Saving actor $tomHolland")
-        Thread.sleep(1000)
-        println("Finished")
-      }
-    }
-
-    // To pull a value we need to compile the stream into a single instance of the effect
-    // Also applied the drain method, which discards any effect output
-    println("Using drain to run the side-effect, discarding any result:\n")
-
-    val compiledStream: IO[Unit] = savingTomHolland.compile.drain
-    compiledStream.unsafeRunSync()
-
-    // Once stream is compiled we have options e.g. convert to a list
-    println("\nConverting the stream to a list:\n")
-    val actors: IO[List[Actor]] = liftedJusticeLeagueActors.compile.toList
-    actors.unsafeRunSync().foreach(println)
-
-    // drain to discard the effect
-    println("\nDraining a stream without an observable side-effect:")
-    val drainedActors: Unit = liftedJusticeLeagueActors.compile.drain.unsafeRunSync()
-
-    // (2.1) Chunks
-
-    // Every stream is made of chunks
-
-    // Chunk[O] is a finite sequence of stream elements of type O stored inside a structure
-    // optimized for indexed based lookup of elements.
-
-    // We can create a stream directly through the Stream.chunk method, which accepts a sequence of Chunk
-    println("\nStream of chunks")
-    println("================\n")
-
-    val chunkedAvengers: Chunk[Actor] = Chunk.array(Array(
-      scarlettJohansson,
-      robertDowneyJr,
-      chrisEvans,
-      markRuffalo,
-      chrisHemsworth,
-      jeremyRenner,
-      tomHolland
-    ))
-
-    val avengerActors: Stream[Pure, Actor] = Stream.chunk(chunkedAvengers)
-    println(s"The Avengers!\n\n${avengerActors.compile.toList.mkString("\n")}")
-
-    // The fs2 library defines a lot of smart-constructors for the Chunk type, letting us create a
-    // Chunk from an Option, a Seq, a Queue, and so on.
-    //
-    // Most of the functions defined on streams are Chunk- aware, so we don’t have to worry about
-    // chunks while working with them.
-
     (justiceLeagueActors, avengerActors, spiderMenActors)
   }
 
@@ -296,6 +167,7 @@ object StreamWorkout extends IOApp {
   }
 
   // (4) Error Handling
+  // If the effect fails, the returned stream fails.
   def errorHandling(justiceLeagueActors: Stream[Pure, Actor]): Stream[IO, Int] = {
     println("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     println("> ERROR HANDLING                     <")
@@ -566,6 +438,7 @@ object StreamWorkout extends IOApp {
             Pull.done
         }
       }
+
       in => go(in).stream
     }
 
