@@ -1,37 +1,13 @@
+package streams
+
 import cats.MonadThrow
 import cats.effect.IO
 import cats.implicits.catsSyntaxOptionId
 import fs2.{Chunk, Pure, Stream}
 import munit.CatsEffectSuite
-import streams.Data._
-import streams.Model.Actor
+import streams.Fixture._
 
-class StreamBuildingTest extends CatsEffectSuite {
-  val justiceLeagueActors: List[Actor] = List(
-    henryCavil,
-    galGodot,
-    ezraMiller,
-    benFisher,
-    rayHardy,
-    jasonMomoa
-  )
-
-  val spiderMenActors: List[Actor] = List(
-    tomHolland,
-    tobeyMaguire,
-    andrewGarfield
-  )
-
-  val avengerActors: List[Actor] = List(
-    scarlettJohansson,
-    robertDowneyJr,
-    chrisEvans,
-    markRuffalo,
-    chrisHemsworth,
-    jeremyRenner,
-    tomHolland
-  )
-
+class Stream01_BuildingSpec extends CatsEffectSuite {
   // Pure streams evaluate no effects, they cannot fail
   test("convert pure stream into a list") {
     val justiceLeagueActorStream = Stream(justiceLeagueActors: _*)

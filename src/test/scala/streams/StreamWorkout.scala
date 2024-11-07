@@ -1,12 +1,10 @@
 package streams
 
-import cats.MonadThrow
 import cats.effect.std.Queue
-import cats.effect.{ExitCode, IO, IOApp}
 import cats.effect.unsafe.implicits.global
-import streams.Data._
-import streams.Model.Actor
-import fs2.{Chunk, INothing, Pipe, Pull, Pure, Stream}
+import cats.effect.{ExitCode, IO, IOApp}
+import fs2.{Chunk, Pipe, Pull, Pure, Stream}
+import streams.Fixture._
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
@@ -38,132 +36,9 @@ object StreamWorkout extends IOApp {
     case class DatabaseConnection(connection: String) extends AnyVal
   }
 
-  // Pure streams evaluate no effects, they cannot fail
-  val justiceLeagueActors: Stream[Pure, Actor] = Stream(
-    henryCavil,
-    galGodot,
-    ezraMiller,
-    benFisher,
-    rayHardy,
-    jasonMomoa
-  )
-
-  val spiderMenActors: Stream[Pure, Actor] = Stream.emits(List(
-    tomHolland,
-    tobeyMaguire,
-    andrewGarfield
-  ))
-
-  val avengerActors: Stream[Pure, Actor] = Stream(
-    scarlettJohansson,
-    robertDowneyJr,
-    chrisEvans,
-    markRuffalo,
-    chrisHemsworth,
-    jeremyRenner,
-    tomHolland
-  )
-
   // (2) Building a stream
   def buildingStreams: (Stream[Pure, Actor], Stream[Pure, Actor], Stream[Pure, Actor]) = {
-    (justiceLeagueActors, avengerActors, spiderMenActors)
-  }
-
-  // (3) Transforming streams
-  def transformingStreams(pureStreams: (Stream[Pure, Actor], Stream[Pure, Actor], Stream[Pure, Actor])): Unit = {
-    println("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    println("> TRANSFORMING STREAMS               <")
-    println("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-
-    val (justiceLeagueActors, avengerActors, _) = pureStreams
-
-    // concatenate two streams
-    println("\nConcatenate 2 streams")
-    println("=====================\n")
-    val dcAndMarvelSuperheroes: Stream[Pure, Actor] = justiceLeagueActors ++ avengerActors
-    println(s"DC and Marvel superheroes:\n\n${dcAndMarvelSuperheroes.compile.toList.mkString("\n")}")
-
-    // The Stream type forms a monad on the O type parameter, which means that a flatMap method
-    // is available on streams, and we can use it to concatenate operations concerning the
-    // output values of the stream.
-
-    // For example, printing to the console the elements of a stream uses the flatMap method
-    //  def flatMap[F2[x] >: F[x], O2](f: O => Stream[F2, O2]): Stream[F2, O2]
-
-    println("\nflatMap and eval a pure stream into an effectful stream")
-    println("=======================================================\n")
-    val printedJusticeLeagueActors: Stream[IO, Unit] = justiceLeagueActors.flatMap { actor =>
-      Stream.eval(IO.println(actor))
-    }
-    printedJusticeLeagueActors.compile.drain.unsafeRunSync()
-
-    // The pattern of calling the function Stream.eval inside a flatMap is so common that fs2
-    // provides a shortcut for it through the evalMap method
-
-    // def evalMap[F2[x] >: F[x], O2](f: O => F2[O2]): Stream[F2, O2]
-    println("\nevalMap = flatMap + eval")
-    println("========================\n")
-    val evalMappedJusticeLeagueActors: Stream[IO, Unit] = justiceLeagueActors.evalMap(IO.println)
-    evalMappedJusticeLeagueActors.compile.drain.unsafeRunSync()
-
-    // If we need to perform some effects on the stream, but we don’t want to change the type
-    // of the stream, we can use the evalTap method:
-    println("\nevalTap evaluates effect without changing stream return type")
-    println("============================================================\n")
-    val evalTappedJusticeLeagueActors: Stream[IO, Actor] = justiceLeagueActors.evalTap(IO.println)
-    evalTappedJusticeLeagueActors.compile.drain.unsafeRunSync()
-
-    // An essential feature of fs2 streams is that their functions take constant time, regardless
-    // of the structure of the stream itself. So, concatenating two streams is a constant time
-    // operation, whether the streams contain many elements or are infinite. As we will see in
-    // the rest of the article, this feature concerns the internal representation, which is
-    // implemented as a pull-based structure.
-
-    // group Avengers by actor's name
-    // fold works as per usual
-
-    println("\nUse fold to group actors by first name")
-    println("======================================\n")
-    val avengersActorsByFirstName: Stream[Pure, Map[String, List[Actor]]] = avengerActors.fold(Map.empty[String, List[Actor]]) { case (map, actor) =>
-      map + (actor.firstName -> (actor :: map.getOrElse(actor.firstName, Nil)))
-    }
-
-    val groupedAvengers: cats.Id[List[Map[String, List[Actor]]]] = avengersActorsByFirstName.compile.toList
-    groupedAvengers.foreach(m => m.foreach {
-      case (name, actors) => println(s"$name => ${actors.mkString(",")}")
-    })
-
-    // Many other streaming libraries define streams and transformation in terms of sources, pipes, and sinks.
-    // A source generates the elements of a stream, then transformed through a sequence of stages or pipes,
-    // and finally consumed by a sink. For example, the Akka Stream library has specific types modeling these
-    // concepts.
-
-    // In fs2, the only available type modeling the above streaming concepts is Pipe[F[_], -I, +O]. Pipe is a
-    // type alias for the function Stream[F, I] => Stream[F, O]. So, a Pipe[F[_], I, O] represents nothing more
-    // than a function between two streams, the first emitting elements of type I, and the second emitting
-    // elements of type O.
-
-    // Therefore we can use pipes to represent transformations on streams as a sequence of stages. The through
-    // method applies a pipe to a stream. Its internal implementation is straightforward since it applies the
-    // function defined by the pipe to the stream:
-
-    // fs2 library code
-    // def through[F2[x] >: F[x], O2](f: Stream[F, O] => Stream[F2, O2]): Stream[F2, O2] = f(this)
-
-    println("\nTransform Justice League actors into a stream containing only first name and surname")
-    println("====================================================================================\n")
-    val fromActorToNamePipe: Pipe[IO, Actor, String] = in =>
-      in.map(actor => s"${actor.firstName} ${actor.lastName}")
-
-    def toConsole[T]: Pipe[IO, T, Unit] = in =>
-      in.evalMap(IO.println)
-
-    // The justiceLeagueActors stream represents the source, whereas the fromActorToNamePipe represents a pipe,
-    // and the toConsole represents the sink. We can conclude that a pipe is pretty much a map/flatMap
-    // type functional operation, but the pipe concept fits nicely into the mental model of a Stream.
-    val stringNamesOfActors: Stream[IO, Unit] = justiceLeagueActors.through(fromActorToNamePipe).through(toConsole)
-
-    stringNamesOfActors.compile.drain.unsafeRunSync
+    (justiceLeagueActorsStream, avengerActorsStream, spiderMenActorsStream)
   }
 
   // (4) Error Handling
@@ -188,17 +63,6 @@ object StreamWorkout extends IOApp {
     }
 
     val savedJusticeLeagueActors: Stream[IO, Int] = justiceLeagueActors.evalMap(ActorRepository.save)
-
-    // The stream is interrupted by the exception. Every time an exception occurs during pulling
-    // elements from a stream, the stream execution ends.
-    println("\nStream throws exception and stops (caught via Try)")
-    println("==================================================\n")
-    Try {
-      savedJusticeLeagueActors.compile.drain.unsafeRunSync
-    } match {
-      case Failure(exception) => println(s"Exception: $exception")
-      case _ => ()
-    }
 
     // Handle error by returning a new stream using the handleErrorWith method
 
@@ -377,7 +241,7 @@ object StreamWorkout extends IOApp {
     // the original Stream then we will have a None. Otherwise, we will have the head of the stream as a Chunk
     // and a Stream representing the tail of the original stream.
 
-    val unconsAvengersActors: Pull[Pure, INothing, Option[(Chunk[Actor], Stream[Pure, Actor])]] =
+    val unconsAvengersActors: Pull[Pure, Nothing, Option[(Chunk[Actor], Stream[Pure, Actor])]] =
       avengerActors.pull.uncons
 
     // Remember: we cannot call stream on unconsAvengersActors as R is not Unit; it is
@@ -386,7 +250,7 @@ object StreamWorkout extends IOApp {
     // println(unconsAvengersActors.stream.compile.toList)
 
     // uncons1 is a variant of the uncons method; it returns the first stream element rather than the first Chunk
-    val uncons1AvengersActors: Pull[Pure, INothing, Option[(Actor, Stream[Pure, Actor])]] =
+    val uncons1AvengersActors: Pull[Pure, Nothing, Option[(Actor, Stream[Pure, Actor])]] =
       avengerActors.pull.uncons1
 
     // Let's define some functions that use the Pull type. Due to the structure of the type, the functions
@@ -595,11 +459,7 @@ object StreamWorkout extends IOApp {
   }
 
   override def run(args: List[String]): IO[ExitCode] = {
-    val pureStreams = buildingStreams
-
-    val (justiceLeagueActors, avengerActors, spiderActors) = pureStreams
-
-    transformingStreams(pureStreams)
+    val (justiceLeagueActors, avengerActors, spiderActors) = buildingStreams
 
     val savedJusticeLeagueActors = errorHandling(justiceLeagueActors)
 

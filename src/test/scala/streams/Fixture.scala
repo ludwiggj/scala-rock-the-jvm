@@ -1,9 +1,8 @@
 package streams
 
-import Model.Actor
-import org.checkerframework.checker.units.qual.s
+import fs2.{Pure, Stream}
 
-object Data {
+object Fixture {
   val justiceLeaguer = "Justice Leaguer"
   val avenger = "Avenger"
   val spider = "Spider"
@@ -28,4 +27,35 @@ object Data {
   // Spiders
   val tobeyMaguire: Actor = Actor(14, "Tobey", "Maguire", spider)
   val andrewGarfield: Actor = Actor(15, "Andrew", "Garfield", spider)
+
+  val avengerActors: List[Actor] = List(
+    scarlettJohansson,
+    robertDowneyJr,
+    chrisEvans,
+    markRuffalo,
+    chrisHemsworth,
+    jeremyRenner,
+    tomHolland
+  )
+
+  val avengerActorsStream: Stream[Pure, Actor] = Stream.emits(avengerActors)
+
+  val justiceLeagueActors: List[Actor] = List(
+    henryCavil,
+    galGodot,
+    ezraMiller,
+    benFisher,
+    rayHardy,
+    jasonMomoa
+  )
+
+  val justiceLeagueActorsStream: Stream[Pure, Actor] = Stream.emits(justiceLeagueActors)
+
+  val spiderMenActors: List[Actor] = List(
+    tomHolland,
+    tobeyMaguire,
+    andrewGarfield
+  )
+
+  val spiderMenActorsStream: Stream[Pure, Actor] = Stream.emits(spiderMenActors)
 }
