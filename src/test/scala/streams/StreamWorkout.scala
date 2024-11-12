@@ -8,7 +8,6 @@ import streams.Fixture._
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.util.{Failure, Random, Try}
 
 // This is based on https://blog.rockthejvm.com/fs2/
 
@@ -32,133 +31,8 @@ import scala.util.{Failure, Random, Try}
 
 // Running this evaluates the IO[ExitCode]
 object StreamWorkout extends IOApp {
-  object db {
-    case class DatabaseConnection(connection: String) extends AnyVal
-  }
-
-  // (2) Building a stream
   def buildingStreams: (Stream[Pure, Actor], Stream[Pure, Actor], Stream[Pure, Actor]) = {
     (justiceLeagueActorsStream, avengerActorsStream, spiderMenActorsStream)
-  }
-
-  // (4) Error Handling
-  // If the effect fails, the returned stream fails.
-  def errorHandling(justiceLeagueActors: Stream[Pure, Actor]): Stream[IO, Int] = {
-    println("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    println("> ERROR HANDLING                     <")
-    println("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-
-    // What if pulling a value from a stream fails with an exception?
-
-    // Let’s introduce a repository persisting an Actor
-    object ActorRepository {
-      def save(actor: Actor): IO[Int] = IO {
-        println(s"Saving actor: $actor")
-        if (Random.nextInt() % 2 == 0) {
-          throw new RuntimeException("Something went wrong during the communication with the persistence layer")
-        }
-        println("Saved")
-        actor.id
-      }
-    }
-
-    val savedJusticeLeagueActors: Stream[IO, Int] = justiceLeagueActors.evalMap(ActorRepository.save)
-
-    // Handle error by returning a new stream using the handleErrorWith method
-
-    // fs2 library code
-
-    // def handleErrorWith[F2[x] >: F[x], O2 >: O](h: Throwable => Stream[F2, O2]): Stream[F2, O2] = ???
-
-    // The elements contained in the stream are AnyVal and not Unit because of the definition of handleErrorWith
-
-    // The O2 type must be a supertype of O’s original type (Int). Since both Int and Unit are subtypes of AnyVal,
-    // we can use the AnyVal type (the least common supertype) to represent the resulting stream.
-    val errorHandledSavedJusticeLeagueActors: Stream[IO, AnyVal] = savedJusticeLeagueActors.handleErrorWith( // Stream[IO, Int]
-      error => Stream.eval(IO.println(s"handleErrorWith Error: $error")) // Stream[IO, Unit]
-    )
-
-    println("\nStream throws exception, handled via handleErrorWith")
-    println("====================================================\n")
-    errorHandledSavedJusticeLeagueActors.compile.drain.unsafeRunSync
-
-    // The attempt method works using the scala.Either type, which returns a stream of Either elements. The
-    // resulting stream pulls elements wrapped in a Right instance until the first error occurs, which is
-    // represented as an instance of a Throwable wrapped in a Left
-    println("\nStream throws exception, handled via attempt")
-    println("============================================\n")
-
-    val attemptedSavedActors: Stream[IO, Either[Throwable, Int]] = savedJusticeLeagueActors.attempt
-
-    attemptedSavedActors.evalMap {
-      case Left(error) => IO.println(s"attempt Error: $error")
-      case Right(id) => IO.println(s"Saved actor with id: $id")
-    }.compile.drain.unsafeRunSync
-
-    // attempt method is implemented internally using the handleErrorWith
-
-    // fs2 library code
-    // def attempt: Stream[F, Either[Throwable, O]] =
-    //   map(Right(_): Either[Throwable, O])                // Stream[F, Either[Throwable, O]]
-    //     .handleErrorWith(e => Stream.emit(Left(e)))
-
-    savedJusticeLeagueActors
-  }
-
-  // (5) Resource Management
-  def resourceManagement(savedJusticeLeagueActors: Stream[IO, Int]): Unit = {
-    println("\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    println("> RESOURCE MANAGEMENT                <")
-    println("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-
-    // We don’t have to use the handleErrorWith method to manage the release of resources used by the stream.
-    // Instead, the fs2 library implements the bracket pattern to manage resources.
-    //
-    //The bracket pattern defines two functions: The first is used to acquire a resource; The second is
-    // guaranteed to be called when the resource is no longer needed.
-    //
-    // The fs2 library implements the bracket pattern through the bracket method:
-    //
-    // fs2 library code
-    // def bracket[F[x] >: Pure[x], R](acquire: F[R])(release: R => F[Unit]): Stream[F, R] = ???
-
-    // The function acquire is used to acquire a resource, and the function release is used to release
-    // the resource. The resulting stream has elements of type R. Moreover, the resource is released
-    // at the end, both in case of success and in case of error. Notice that both the acquire and
-    // release functions returns an effect since they can throw exceptions during the acquisition or
-    // release of resources.
-
-    // Use a resource during the persistence of the stream containing the actors of the JLA.
-
-    // First, we define a value class representing a connection to a database:
-
-    // We use the DatabaseConnection as the resource we want to acquire and release through
-    // the bracket pattern. Then, the acquiring and releasing function:
-    import db.DatabaseConnection
-
-    val acquire = IO {
-      val conn = DatabaseConnection("jlaConnection")
-      println(s"Acquiring connection to the database: $conn")
-      conn
-    }
-
-    val release = (conn: DatabaseConnection) =>
-      IO.println(s"Releasing connection to the database: $conn")
-
-    // Finally, we use them to call the bracket method and then save the actors in the stream
-    val managedJlActors: Stream[IO, Int] = Stream.bracket(acquire)(release).flatMap(conn => savedJusticeLeagueActors) // conn would be used in real-life code
-
-    // Since savedJusticeLeagueActors throws an exception when the stream is evaluated, the managedJlActors stream will
-    // terminate with an error. The release function is called, and the conn value is released
-
-    println("\nStream throws exception and stops, bracket ensures stream is closed (exception caught via Try)")
-    println("==============================================================================================\n")
-    Try {
-      managedJlActors.compile.drain.unsafeRunSync
-    } match {
-      case Failure(exception) => println(s"Exception: $exception")
-      case _ => ()
-    }
   }
 
   // (6) The pull type
@@ -460,10 +334,6 @@ object StreamWorkout extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = {
     val (justiceLeagueActors, avengerActors, spiderActors) = buildingStreams
-
-    val savedJusticeLeagueActors = errorHandling(justiceLeagueActors)
-
-    resourceManagement(savedJusticeLeagueActors)
 
     pullType(avengerActors)
 
